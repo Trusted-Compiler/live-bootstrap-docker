@@ -8,3 +8,4 @@ kernel
 distfiles/
 __pycache__
 steps/bootstrap.cfg
+bootstrap.cfg.docker
