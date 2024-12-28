@@ -68,6 +68,7 @@ Without using Python:
    c. **Bare metal:** Follow the same steps as QEMU, but the disks need to be
       two different *physical* disks, and boot from the first disk.
    d. **Docker:**
+
       * Acquire distfiles by ``./download-distfiles.sh`` or ``./download-distfiles-backup.sh``
       * Run ``./make-docker-cfg.sh`` or ``jobs=N ./make-docker-cfg.sh`` for using more jobs while building
       * Run ``docker build -t live-bootstrap .``
