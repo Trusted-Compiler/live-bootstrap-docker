@@ -31,8 +31,8 @@ _get_files() {
     for f in ${fs}; do
         # Archive symlinks to directories as symlinks
         echo "${prefix}/${f}"
-        if [ -d "${f}" ] && ! [ -h "${f}" ]; then
-            cd "${f}"
+        if [ -d "./${f}" ] && ! [ -h "./${f}" ]; then
+            cd "./${f}"
             _get_files "${prefix}/${f}"
             cd ..
         fi
@@ -54,9 +54,9 @@ reset_timestamp() {
             fs="${fs} $(echo .[0-z]*)"
         fi
         for f in ${fs}; do
-            touch -h -t 197001010000.00 "${f}"
-            if [ -d "${f}" ]; then
-                cd "${f}"
+            touch -h -t 197001010000.00 "./${f}"
+            if [ -d "./${f}" ]; then
+                cd "./${f}"
                 reset_timestamp
                 cd ..
             fi
@@ -369,13 +369,14 @@ default_src_unpack() {
 
 # Default function to prepare source code.
 # It applies all patches from patch_dir (at the moment only -p0 patches are supported).
+# Patches are applied from the parent directory.
 # Then it copies our custom makefile and any other custom files from files directory.
 default_src_prepare() {
     if test -d "${patch_dir}"; then
         if ls "${patch_dir}"/*.patch >/dev/null 2>&1; then
             for p in "${patch_dir}"/*.patch; do
                 echo "Applying patch: ${p}"
-                patch -Np0 < "${p}"
+                patch -d.. -Np0 < "${p}"
             done
         fi
     fi
