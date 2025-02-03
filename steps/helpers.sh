@@ -21,8 +21,6 @@ _get_files() {
     prefix="${1}"
     fs=
     if [ -n "$(ls 2>/dev/null)" ]; then
-        # This can be removed once Debian 12 is stable
-        # shellcheck disable=SC2035
         fs=$(echo *)
     fi
     if [ -n "$(ls .[0-z]* 2>/dev/null)" ]; then
@@ -141,6 +139,8 @@ uninstall() {
                         if [ -z "$(ls -A "/${file}")" ]; then
                             rmdir "/${file}"
                         fi
+                    elif [ -h "${file}" ]; then
+                        symlinks="${symlinks} ${file}"
                     else
                         # in some cases we might be uninstalling a file that has already been overwritten
                         # in this case we don't want to remove it
@@ -148,9 +148,6 @@ uninstall() {
                         in_pkg="$(sha256sum "/${file}" 2>/dev/null | cut -d' ' -f1)"
                         if [ "${in_fs}" = "${in_pkg}" ]; then
                             rm -f "/${file}"
-                        fi
-                        if [ -h "${file}" ]; then
-                            symlinks="${symlinks} ${file}"
                         fi
                     fi
                 done < ../filelist
@@ -258,24 +255,55 @@ build() {
     unset extract
 }
 
+# An inventive way to randomise with what we know we always have
+randomize() {
+    if command -v shuf >/dev/null 2>&1; then
+        # shellcheck disable=SC2086
+        shuf -e ${1} | tr '\n' ' '
+    else
+        mkdir -p /tmp/random
+        for item in ${1}; do
+            touch --date=@${RANDOM} /tmp/random/"${item//\//~*~*}"
+        done
+        # cannot rely on find existing
+        # shellcheck disable=SC2012
+        ls -1 -t /tmp/random | sed 's:~\*~\*:/:g' | tr '\n' ' '
+        rm -r /tmp/random
+    fi
+}
+
 download_source_line() {
-    url="${1}"
+    if [[ "${1}" == git://* ]]; then
+        shift
+    fi
+    upstream_url="${1}"
     checksum="${2}"
     fname="${3}"
     # Default to basename of url if not given
-    fname="${fname:-$(basename "${url}")}"
+    fname="${fname:-$(basename "${upstream_url}")}"
     if ! [ -e "${fname}" ]; then
-        curl --fail --retry 5 --location "${url}" --output "${fname}" || true
+        for mirror in $(randomize "${MIRRORS}"); do
+            mirror_url="${mirror}/${fname}"
+            echo "${mirror_url}"
+            curl --fail --retry 3 --location "${mirror_url}" --output "${fname}" || true && break
+        done
+        if ! [ -e "${fname}" ] && [ "${upstream_url}" != "_" ]; then
+            curl --fail --retry 3 --location "${upstream_url}" --output "${fname}" || true
+        fi
     fi
 }
 
 check_source_line() {
+    if [[ "${1}" == git://* ]]; then
+        shift
+    fi
     url="${1}"
     checksum="${2}"
     fname="${3}"
     # Default to basename of url if not given
     fname="${fname:-$(basename "${url}")}"
     if ! [ -e "${fname}" ]; then
+        echo "${fname} does not exist!"
         false
     fi
     echo "${checksum}  ${fname}" > "${fname}.sum"
@@ -304,6 +332,9 @@ default_src_get() {
 
 # Intelligently extracts a file based upon its filetype.
 extract_file() {
+    if [[ "${1}" == git://* ]]; then
+        shift
+    fi
     f="${3:-$(basename "${1}")}"
     # shellcheck disable=SC2154
     case "${noextract}" in
